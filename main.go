@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 func main() {
@@ -32,6 +34,12 @@ func main() {
 		}
 
 		subPath := fmt.Sprintf("%s@%s", items[0], items[1][:len(items[1])-7])
+
+		// DataDog -> !data!dog
+		r := regexp.MustCompile(`[A-Z]`)
+		subPath = r.ReplaceAllStringFunc(subPath, func(m string) string {
+			return "!" + strings.ToLower(m)
+		})
 
 		// skip when src folder not exists
 		fullPath := filepath.Join(modPath, subPath)
