@@ -20,6 +20,21 @@ func main() {
 		panic(err)
 	}
 
+	if _, err := os.Stat("go.mod"); os.IsNotExist(err) {
+		panic(err)
+	}
+	gomod, err := ioutil.ReadFile("go.mod")
+	if err != nil {
+		panic(err)
+	}
+
+	re := regexp.MustCompile(`replace (\S+) => (\S+)`)
+	replaces := re.FindAllSubmatch(gomod, -1)
+	replaceMap := make(map[string]string, len(replaces))
+	for _, x := range replaces {
+		replaceMap[string(x[2])] = string(x[1])
+	}
+
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
 	for _, line := range bytes.Split(data, []byte("\n")) {
@@ -47,32 +62,38 @@ func main() {
 			continue
 		}
 
-		// skip symlink already exists
-		vendorPath := filepath.Join("vendor", string(items[0]))
-		if _, err := os.Stat(vendorPath); err == nil {
-			continue
+		links := []string{string(items[0])}
+		if val, ok := replaceMap[string(string(items[0]))]; ok {
+			links = append(links, val)
 		}
 
-		// create parent folder if not exists
-		vendorDir := filepath.Dir(vendorPath)
+		for _, link := range links {
+			// skip symlink already exists
+			vendorPath := filepath.Join("vendor", link)
+			if _, err := os.Stat(vendorPath); err == nil {
+				continue
+			}
 
-		parentDir := filepath.Dir(vendorDir)
-		_ = os.Chmod(parentDir, 0755) // try to 755 parent
+			// create parent folder if not exists
+			vendorDir := filepath.Dir(vendorPath)
 
-		if _, err := os.Stat(vendorDir); os.IsNotExist(err) {
-			err := os.MkdirAll(vendorDir, 0755)
+			parentDir := filepath.Dir(vendorDir)
+			_ = os.Chmod(parentDir, 0755) // try to 755 parent
+
+			if _, err := os.Stat(vendorDir); os.IsNotExist(err) {
+				err := os.MkdirAll(vendorDir, 0755)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			// symlink now
+			err := os.Symlink(fullPath, vendorPath)
 			if err != nil {
 				panic(err)
 			}
-		}
 
-		// symlink now
-		err := os.Symlink(fullPath, vendorPath)
-		if err != nil {
-			panic(err)
+			fmt.Println("symlink created", vendorPath)
 		}
-
-		// done
-		fmt.Println("symlink created", vendorPath)
 	}
 }
