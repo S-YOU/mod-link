@@ -73,14 +73,16 @@ func main() {
 			if _, err := os.Stat(vendorPath); err == nil {
 				continue
 			}
+
+			// needed?
 			_ = os.Chmod(vendorPath, 0755)
+
+			for parentDir := filepath.Dir(vendorPath); parentDir != "vendor"; parentDir = filepath.Dir(parentDir) {
+				_ = os.Chmod(parentDir, 0755)
+			}
 
 			// create parent folder if not exists
 			vendorDir := filepath.Dir(vendorPath)
-
-			parentDir := filepath.Dir(vendorDir)
-			_ = os.Chmod(parentDir, 0755)
-
 			if _, err := os.Stat(vendorDir); os.IsNotExist(err) {
 				err := os.MkdirAll(vendorDir, 0755)
 				if err != nil {
