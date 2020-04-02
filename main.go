@@ -47,7 +47,6 @@ func main() {
 	matches := modulesRegexp.FindAllSubmatch(gomod, -1)
 	var buf bytes.Buffer
 	for _, x := range matches {
-		fmt.Printf("match: %s\n", x[1])
 		buf.Write(x[1])
 		buf.WriteString("\n")
 	}
@@ -63,6 +62,13 @@ func main() {
 
 		// skip unless has suffix /go.mod
 		if !bytes.HasSuffix(items[1], []byte("/go.mod")) {
+			continue
+		}
+
+		multipleMod := make([]byte, 0)
+		multipleMod = append(multipleMod, items[0]...)
+		multipleMod = append(multipleMod, '/')
+		if bytes.Contains(data, multipleMod) {
 			continue
 		}
 
