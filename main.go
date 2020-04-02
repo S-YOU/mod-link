@@ -35,6 +35,24 @@ func main() {
 		replaceMap[string(x[2])] = string(x[1])
 	}
 
+	vendorDir := filepath.Dir("vendor")
+	if _, err := os.Stat(vendorDir); os.IsNotExist(err) {
+		err := os.Mkdir(vendorDir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	modulesRegexp := regexp.MustCompile(`\t(\S+) `)
+	matches := modulesRegexp.FindAllSubmatch(gomod, -1)
+	var buf bytes.Buffer
+	for _, x := range matches {
+		fmt.Printf("match: %s\n", x[1])
+		buf.Write(x[1])
+		buf.WriteString("\n")
+	}
+	ioutil.WriteFile("vendor/modules.txt", buf.Bytes(), 0644)
+
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
 	for _, line := range bytes.Split(data, []byte("\n")) {
