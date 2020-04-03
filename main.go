@@ -67,7 +67,7 @@ func main() {
 
 		multipleMod := make([]byte, 0)
 		multipleMod = append(multipleMod, items[0]...)
-		multipleMod = append(multipleMod, '/', 'v', '2')
+		multipleMod = append(multipleMod, '/')
 		if bytes.Contains(data, multipleMod) {
 			continue
 		}
