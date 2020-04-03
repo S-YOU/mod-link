@@ -94,7 +94,13 @@ func main() {
 		for _, link := range links {
 			// skip symlink already exists
 			vendorPath := filepath.Join("vendor", link)
-			if _, err := os.Stat(vendorPath); err == nil {
+			if info, err := os.Lstat(vendorPath); err == nil {
+				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+					err := os.Remove(vendorPath)
+					if err != nil {
+						panic(err)
+					}
+				}
 				continue
 			}
 
