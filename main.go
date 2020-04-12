@@ -65,6 +65,17 @@ func main() {
 			continue
 		}
 
+		ver := bytes.SplitN(items[1], []byte("/"), 2)[0]
+		if bytes.Contains(gomod, items[0]) {
+			pkgVer := make([]byte, 0)
+			pkgVer = append(pkgVer, items[0]...)
+			pkgVer = append(pkgVer, ' ')
+			pkgVer = append(pkgVer, ver...)
+			if !bytes.Contains(gomod, pkgVer) {
+				continue
+			}
+		}
+
 		multipleMod := make([]byte, 0)
 		multipleMod = append(multipleMod, items[0]...)
 		multipleMod = append(multipleMod, '/')
@@ -96,12 +107,21 @@ func main() {
 			vendorPath := filepath.Join("vendor", link)
 			if info, err := os.Lstat(vendorPath); err == nil {
 				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-					err := os.Remove(vendorPath)
+					resolved, err := os.Readlink(vendorPath)
 					if err != nil {
 						panic(err)
 					}
+					if fullPath == resolved {
+						continue
+					} else {
+						err = os.Remove(vendorPath)
+						if err != nil {
+							panic(err)
+						}
+					}
+				} else {
+					continue
 				}
-				continue
 			}
 
 			// needed?
@@ -126,7 +146,7 @@ func main() {
 				panic(err)
 			}
 
-			fmt.Println("symlink created", vendorPath)
+			fmt.Println("symlink created", fullPath, vendorPath)
 		}
 	}
 }
