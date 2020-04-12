@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+type ModItem struct {
+	mod      []byte
+	ver      []byte
+	fullPath string
+}
+
 func main() {
 	if _, err := os.Stat("go.sum"); os.IsNotExist(err) {
 		panic(err)
@@ -54,6 +60,7 @@ func main() {
 
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
+	modItems := make(map[string]ModItem, 0)
 	for _, line := range bytes.Split(data, []byte("\n")) {
 		items := bytes.SplitN(line, []byte(" "), 3)
 		if len(items) != 3 {
@@ -97,8 +104,12 @@ func main() {
 			continue
 		}
 
-		links := []string{string(items[0])}
-		if val, ok := replaceMap[string(string(items[0]))]; ok {
+		modItems[string(items[0])] = ModItem{mod: items[0], ver: ver, fullPath: fullPath}
+	}
+
+	for modName, modItem := range modItems {
+		links := []string{modName}
+		if val, ok := replaceMap[modName]; ok {
 			links = append(links, val)
 		}
 
@@ -111,7 +122,7 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
-					if fullPath == resolved {
+					if modItem.fullPath == resolved {
 						continue
 					} else {
 						err = os.Remove(vendorPath)
@@ -141,12 +152,12 @@ func main() {
 			}
 
 			// symlink now
-			err := os.Symlink(fullPath, vendorPath)
+			err := os.Symlink(modItem.fullPath, vendorPath)
 			if err != nil {
 				panic(err)
 			}
 
-			fmt.Println("symlink created", fullPath, vendorPath)
+			fmt.Println("symlink created", modItem.fullPath, vendorPath)
 		}
 	}
 }
