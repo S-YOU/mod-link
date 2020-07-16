@@ -53,6 +53,7 @@ func main() {
 	matches := modulesRegexp.FindAllSubmatch(gomod, -1)
 	var buf bytes.Buffer
 	for _, x := range matches {
+		//fmt.Printf("%s\n", x[1])
 		buf.Write(x[1])
 		buf.WriteString("\n")
 	}
@@ -61,7 +62,8 @@ func main() {
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
 	modItems := make(map[string]ModItem, 0)
-	for _, line := range bytes.Split(data, []byte("\n")) {
+	lines := bytes.Split(data, []byte("\n"))
+	first: for _, line := range lines {
 		items := bytes.SplitN(line, []byte(" "), 3)
 		if len(items) != 3 {
 			continue
@@ -86,8 +88,10 @@ func main() {
 		multipleMod := make([]byte, 0)
 		multipleMod = append(multipleMod, items[0]...)
 		multipleMod = append(multipleMod, '/')
-		if bytes.Contains(data, multipleMod) {
-			continue
+		for _, l := range lines {
+			if bytes.HasPrefix(l, multipleMod) {
+				continue first
+			}
 		}
 
 		subPath := fmt.Sprintf("%s@%s", items[0], items[1][:len(items[1])-7])
