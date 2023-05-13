@@ -2,26 +2,61 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-type ModItem struct {
+type modItem struct {
 	mod      []byte
 	ver      []byte
 	fullPath string
 }
 
+type subPackagePair struct {
+	mod  string
+	name string
+}
+
+var defaultSubPackages = []subPackagePair{
+	{"cloud.google.com/go", "civil"},
+	{"go.opentelemetry.io/otel", "*"},
+	{"github.com/GoogleCloudPlatform/opentelemetry-operations-go", "propagator"},
+}
+
+var (
+	subPackages = flag.String("sub-packages", "", "sub packages, comma seperated")
+)
+
 func main() {
+	flag.Parse()
 	if _, err := os.Stat("go.sum"); os.IsNotExist(err) {
 		panic(err)
 	}
+	if *subPackages != "" {
+		for _, pkg := range strings.Split(*subPackages, ",") {
+			pair := strings.LastIndexByte(pkg, '/')
+			if pair < 0 {
+				panic(fmt.Errorf("sub-packages should contain slash"))
+			}
+			k, v := pkg[:pair], pkg[pair+1:]
+			found := false
+			for _, vv := range defaultSubPackages {
+				if vv.mod == k && vv.name == v {
+					found = true
+				}
+			}
+			if !found {
+				fmt.Println("sub-package", pkg)
+				defaultSubPackages = append(defaultSubPackages, subPackagePair{k, v})
+			}
+		}
+	}
 
-	data, err := ioutil.ReadFile("go.sum")
+	data, err := os.ReadFile("go.sum")
 	if err != nil {
 		panic(err)
 	}
@@ -29,7 +64,7 @@ func main() {
 	if _, err := os.Stat("go.mod"); os.IsNotExist(err) {
 		panic(err)
 	}
-	gomod, err := ioutil.ReadFile("go.mod")
+	gomod, err := os.ReadFile("go.mod")
 	if err != nil {
 		panic(err)
 	}
@@ -57,13 +92,16 @@ func main() {
 		buf.Write(x[1])
 		buf.WriteString("\n")
 	}
-	ioutil.WriteFile("vendor/modules.txt", buf.Bytes(), 0644)
+	//if err := os.WriteFile("vendor/modules.txt", buf.Bytes(), 0644); err != nil {
+	//	panic(err)
+	//}
 
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
-	modItems := make(map[string]ModItem, 0)
+	modItems := make(map[string]modItem, 0)
 	lines := bytes.Split(data, []byte("\n"))
-	first: for _, line := range lines {
+	//first:
+	for _, line := range lines {
 		items := bytes.SplitN(line, []byte(" "), 3)
 		if len(items) != 3 {
 			continue
@@ -88,11 +126,12 @@ func main() {
 		multipleMod := make([]byte, 0)
 		multipleMod = append(multipleMod, items[0]...)
 		multipleMod = append(multipleMod, '/')
-		for _, l := range lines {
-			if bytes.HasPrefix(l, multipleMod) {
-				continue first
-			}
-		}
+		//for _, l := range lines {
+		//	if bytes.HasPrefix(l, multipleMod) {
+		//		fmt.Println("line", string(line))
+		//		continue first
+		//	}
+		//}
 
 		subPath := fmt.Sprintf("%s@%s", items[0], items[1][:len(items[1])-7])
 
@@ -108,7 +147,42 @@ func main() {
 			continue
 		}
 
-		modItems[string(items[0])] = ModItem{mod: items[0], ver: ver, fullPath: fullPath}
+		modItems[string(items[0])] = modItem{mod: items[0], ver: ver, fullPath: fullPath}
+	}
+
+	for _, v := range defaultSubPackages {
+		appendItems := make([]modItem, 0)
+		for modName, x := range modItems {
+			if modName == v.mod {
+				var names []string
+				if v.name == "*" {
+					dirs, err := os.ReadDir(x.fullPath)
+					if err != nil {
+						panic(err)
+					}
+					for _, d := range dirs {
+						name := d.Name()
+						if name[0] != '.' && (d.IsDir() || (strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go"))) {
+							names = append(names, name)
+						}
+					}
+				} else {
+					names = append(names, v.name)
+				}
+				for _, name := range names {
+					subPkgPath := filepath.Join(x.fullPath, name)
+					if _, err := os.Lstat(subPkgPath); err == nil {
+						relPath := filepath.Join(string(x.mod), name)
+						appendItems = append(appendItems, modItem{
+							[]byte(relPath), x.ver, subPkgPath,
+						})
+					}
+				}
+			}
+		}
+		for _, x := range appendItems {
+			modItems[string(x.mod)] = x
+		}
 	}
 
 	for modName, modItem := range modItems {
