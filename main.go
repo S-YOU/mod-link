@@ -69,11 +69,17 @@ func main() {
 		panic(err)
 	}
 
+	lines := bytes.Split(data, []byte("\n"))
+	modItems := make(map[string]modItem, len(lines)*2)
+
 	re := regexp.MustCompile(`replace (\S+) => (\S+)`)
 	replaces := re.FindAllSubmatch(gomod, -1)
-	replaceMap := make(map[string]string, len(replaces))
 	for _, x := range replaces {
-		replaceMap[string(x[2])] = string(x[1])
+		fullPath, err := filepath.Abs(string(x[2]))
+		if err != nil {
+			panic(err)
+		}
+		modItems[string(x[1])] = modItem{mod: x[1], ver: nil, fullPath: fullPath}
 	}
 
 	vendorDir := filepath.Dir("vendor")
@@ -88,7 +94,6 @@ func main() {
 	matches := modulesRegexp.FindAllSubmatch(gomod, -1)
 	var buf bytes.Buffer
 	for _, x := range matches {
-		//fmt.Printf("%s\n", x[1])
 		buf.Write(x[1])
 		buf.WriteString("\n")
 	}
@@ -98,8 +103,6 @@ func main() {
 
 	modPath := filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 
-	modItems := make(map[string]modItem, 0)
-	lines := bytes.Split(data, []byte("\n"))
 	//first:
 	for _, line := range lines {
 		items := bytes.SplitN(line, []byte(" "), 3)
@@ -126,12 +129,6 @@ func main() {
 		multipleMod := make([]byte, 0)
 		multipleMod = append(multipleMod, items[0]...)
 		multipleMod = append(multipleMod, '/')
-		//for _, l := range lines {
-		//	if bytes.HasPrefix(l, multipleMod) {
-		//		fmt.Println("line", string(line))
-		//		continue first
-		//	}
-		//}
 
 		subPath := fmt.Sprintf("%s@%s", items[0], items[1][:len(items[1])-7])
 
@@ -187,9 +184,6 @@ func main() {
 
 	for modName, modItem := range modItems {
 		links := []string{modName}
-		if val, ok := replaceMap[modName]; ok {
-			links = append(links, val)
-		}
 
 		for _, link := range links {
 			// skip symlink already exists
