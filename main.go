@@ -25,6 +25,7 @@ var defaultSubPackages = []subPackagePair{
 	{"cloud.google.com/go", "civil"},
 	{"go.opentelemetry.io/otel", "*"},
 	{"github.com/GoogleCloudPlatform/opentelemetry-operations-go", "propagator"},
+	{"github.com/aws/aws-sdk-go-v2", "aws"},
 }
 
 var (
